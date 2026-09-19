@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="siu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visitas a colegios | SIU</title>
+
+<!-- Evita el parpadeo de tema: se aplica antes de pintar -->
+<script>
+  try {
+    var t = localStorage.getItem('siu.tema') ||
+      (matchMedia('(prefers-color-scheme: dark)').matches ? 'siu-dark' : 'siu');
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- daisyUI 5 + Tailwind CSS 4 (CDN, sin compilación) -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+<style>
+  /* ---------- Temas propios de daisyUI: "siu" (claro) y "siu-dark" ---------- */
+  [data-theme="siu"] {
+    color-scheme: light;
+    --color-base-100: oklch(99% 0.004 255);
+    --color-base-200: oklch(96.5% 0.008 255);
+    --color-base-300: oklch(90% 0.014 255);
+    --color-base-content: oklch(25% 0.045 262);
+    --color-primary: oklch(42% 0.15 262);
+    --color-primary-content: oklch(98% 0.01 262);
+    --color-secondary: oklch(83% 0.16 85);
+    --color-secondary-content: oklch(30% 0.07 85);
+    --color-accent: oklch(55% 0.12 190);
+    --color-accent-content: oklch(98% 0.01 190);
+    --color-neutral: oklch(27% 0.06 262);
+    --color-neutral-content: oklch(95% 0.01 262);
+    --color-info: oklch(60% 0.15 240);
+    --color-info-content: oklch(98% 0.01 240);
+    --color-success: oklch(58% 0.14 155);
+    --color-success-content: oklch(98% 0.01 155);
+    --color-warning: oklch(82% 0.15 80);
+    --color-warning-content: oklch(28% 0.07 80);
+    --color-error: oklch(56% 0.21 27);
+    --color-error-content: oklch(98% 0.01 27);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.375rem;
+    --radius-box: 0.625rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+  }
+  [data-theme="siu-dark"] {
+    color-scheme: dark;
+    --color-base-100: oklch(24% 0.035 262);
+    --color-base-200: oklch(20.5% 0.035 262);
+    --color-base-300: oklch(30% 0.035 262);
+    --color-base-content: oklch(93% 0.012 262);
+    --color-primary: oklch(74% 0.12 262);
+    --color-primary-content: oklch(20% 0.05 262);
+    --color-secondary: oklch(82% 0.15 85);
+    --color-secondary-content: oklch(28% 0.07 85);
+    --color-accent: oklch(72% 0.11 190);
+    --color-accent-content: oklch(20% 0.04 190);
+    --color-neutral: oklch(17% 0.03 262);
+    --color-neutral-content: oklch(95% 0.01 262);
+    --color-info: oklch(72% 0.13 240);
+    --color-info-content: oklch(20% 0.05 240);
+    --color-success: oklch(72% 0.15 155);
+    --color-success-content: oklch(20% 0.05 155);
+    --color-warning: oklch(82% 0.15 80);
+    --color-warning-content: oklch(28% 0.07 80);
+    --color-error: oklch(68% 0.19 25);
+    --color-error-content: oklch(20% 0.06 25);
+    --radius-selector: 0.5rem;
+    --radius-field: 0.375rem;
+    --radius-box: 0.625rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+  }
+
+  body { font-family: 'Public Sans', system-ui, sans-serif; }
+  .font-display { font-family: 'Bricolage Grotesque', 'Public Sans', system-ui, sans-serif; letter-spacing: -0.01em; }
+
+  /* Borde lateral de las tarjetas: amarillo = pendiente de envío, verde = enviada */
+  .edge-pend { border-left: 4px solid var(--color-secondary); }
+  .edge-sent { border-left: 4px solid var(--color-success); }
+
+  /* Foco visible en elementos interactivos que no son .btn */
+  [data-action]:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+</style>
+</head>
+
+<body class="min-h-screen bg-base-200 text-base-content">
+
+<!-- ============================ ENCABEZADO ============================ -->
+<header class="bg-neutral text-neutral-content border-b-4 border-secondary">
+  <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+    <div class="min-w-0 flex-1">
+      <h1 class="font-display truncate text-xl font-bold leading-tight sm:text-2xl">Visitas a colegios</h1>
+      <p class="truncate text-xs opacity-80 sm:text-sm">Agenda y registro del personal de SIU</p>
+    </div>
+    <button id="btn-theme" data-action="theme" class="btn btn-ghost btn-square btn-sm" aria-label="Cambiar entre tema claro y oscuro"></button>
+    <button data-action="send-pending" class="btn btn-secondary btn-sm">
+      Enviar pendientes
+      <span id="pending-count" class="badge badge-sm">0</span>
+    </button>
+  </div>
+</header>
+
+<!-- ============================ PESTAÑAS ============================ -->
+<div class="sticky top-0 z-20 bg-base-200/90 backdrop-blur">
+  <div class="mx-auto max-w-7xl px-4 py-3">
+    <div role="tablist" class="tabs tabs-box w-fit">
+      <button role="tab" id="tab-agenda" data-action="tab" data-tab="agenda" class="tab tab-active">Agenda</button>
+      <button role="tab" id="tab-form" data-action="tab" data-tab="form" class="tab">Registrar visita</button>
+    </div>
+  </div>
+</div>
+
+<main class="mx-auto max-w-7xl px-4 pb-16">
+
+  <!-- ============================ AGENDA ============================ -->
+  <section id="sec-agenda" aria-labelledby="tab-agenda" class="space-y-4">
+
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="join" id="view-switch">
+        <button data-action="set-view" data-view="semana" class="btn btn-sm join-item">Semana</button>
+        <button data-action="set-view" data-view="mes" class="btn btn-sm join-item">Mes</button>
+        <button data-action="set-view" data-view="lista" class="btn btn-sm join-item">Lista</button>
+      </div>
+
+      <div class="join" id="period-nav">
+        <button data-action="prev" class="btn btn-sm btn-square join-item" aria-label="Periodo anterior" id="btn-prev"></button>
+        <button data-action="today" class="btn btn-sm join-item">Hoy</button>
+        <button data-action="next" class="btn btn-sm btn-square join-item" aria-label="Periodo siguiente" id="btn-next"></button>
+      </div>
+
+      <h2 id="period-label" class="font-display text-lg font-semibold capitalize"></h2>
+
+      <div class="ml-auto flex flex-wrap gap-2">
+        <select id="flt-distrito" class="select select-sm w-44" aria-label="Filtrar por distrito"></select>
+        <input id="flt-q" type="search" class="input input-sm w-52" placeholder="Buscar colegio o persona" aria-label="Buscar">
+      </div>
+    </div>
+
+    <div id="agenda-summary" class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"></div>
+    <div id="agenda-body"></div>
+  </section>
+
+  <!-- ============================ FORMULARIO ============================ -->
+  <section id="sec-form" aria-labelledby="tab-form" class="hidden">
+    <form id="visit-form" novalidate class="card border border-base-300 bg-base-100">
+      <div class="card-body gap-6">
+
+        <div>
+          <h2 id="form-title" class="font-display text-2xl font-bold">Registrar visita</h2>
+          <p id="form-sub" class="text-sm opacity-70">Completa los datos del colegio visitado y adjunta entre 2 y 4 fotos.</p>
+        </div>
+
+        <div id="edit-banner" role="status" class="alert alert-info alert-soft hidden">
+          <span>Estás editando una visita ya guardada. Actualiza los datos, o elimínala si fue un error.</span>
+        </div>
+
+        <div class="grid gap-x-4 gap-y-3 md:grid-cols-2">
+          <h3 class="font-display text-lg font-semibold md:col-span-2">Colegio</h3>
+
+          <fieldset class="fieldset md:col-span-2">
+            <legend class="fieldset-legend">Nombre del colegio</legend>
+            <input id="f-colegio" class="input w-full" maxlength="120" autocomplete="off" placeholder="Ej.: Colegio Secundario de Boquete">
+            <p class="text-error text-sm hidden" data-err="colegio"></p>
+          </fieldset>
+
+          <fieldset class="fieldset md:col-span-2">
+            <legend class="fieldset-legend">Ubicación</legend>
+            <div class="flex gap-2">
+              <input id="f-ubicacion" class="input w-full" maxlength="200" autocomplete="off" placeholder="Dirección o punto de referencia">
+              <button type="button" data-action="gps" class="btn btn-square" aria-label="Usar mi ubicación GPS" title="Usar mi ubicación GPS" id="btn-gps"></button>
+            </div>
+            <p id="coords-hint" class="text-xs opacity-70"></p>
+            <p class="text-error text-sm hidden" data-err="ubicacion"></p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Distrito</legend>
+            <select id="f-distrito" class="select w-full"></select>
+            <p class="text-error text-sm hidden" data-err="distrito"></p>
+          </fieldset>
+
+          <fieldset class="fieldset hidden" id="wrap-otro">
+            <legend class="fieldset-legend">¿Cuál distrito u otro sitio?</legend>
+            <input id="f-otro" class="input w-full" maxlength="80" autocomplete="off" placeholder="Especifica el lugar">
+            <p class="text-error text-sm hidden" data-err="otro"></p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Cantidad de estudiantes</legend>
+            <input id="f-estudiantes" type="number" inputmode="numeric" min="1" max="5000" step="1" class="input w-full" placeholder="Ej.: 240">
+            <p class="text-error text-sm hidden" data-err="estudiantes"></p>
+          </fieldset>
+
+          <h3 class="font-display mt-2 text-lg font-semibold md:col-span-2">Visita</h3>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Día</legend>
+            <input id="f-dia" type="date" class="input w-full">
+            <p class="text-error text-sm hidden" data-err="dia"></p>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Hora (formato de 24 horas)</legend>
+            <div class="flex items-center gap-2">
+              <select id="f-hh" class="select w-full" aria-label="Hora"></select>
+              <span class="font-display text-xl font-bold" aria-hidden="true">:</span>
+              <select id="f-mm" class="select w-full" aria-label="Minutos"></select>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset md:col-span-2">
+            <legend class="fieldset-legend">Nombre de la persona que visita</legend>
+            <input id="f-persona" class="input w-full" maxlength="100" autocomplete="name" placeholder="Nombre y apellido">
+            <p class="text-error text-sm hidden" data-err="persona"></p>
+          </fieldset>
+
+          <fieldset class="fieldset md:col-span-2">
+            <legend class="fieldset-legend">Observación</legend>
+            <textarea id="f-obs" rows="4" maxlength="1000" class="textarea w-full" placeholder="¿Qué se observó durante la visita?"></textarea>
+            <p class="text-error text-sm hidden" data-err="obs"></p>
+          </fieldset>
+
+          <div class="md:col-span-2">
+            <h3 class="font-display mt-2 text-lg font-semibold">Fotos</h3>
+            <p class="text-sm opacity-70">Mínimo 2 y máximo 4 imágenes. Se reducen de tamaño para que el JSON pese menos.</p>
+
+            <div id="foto-drop" class="mt-3 rounded-box border border-dashed border-base-300 p-3">
+              <div id="foto-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button" data-action="pick-files" class="btn btn-sm" id="btn-pick"></button>
+                <button type="button" data-action="pick-cam" class="btn btn-sm" id="btn-cam"></button>
+                <span id="foto-count" class="text-sm font-medium"></span>
+              </div>
+              <p class="text-error mt-2 text-sm hidden" data-err="fotos"></p>
+            </div>
+
+            <input type="file" id="f-file" accept="image/*" multiple class="hidden">
+            <input type="file" id="f-cam" accept="image/*" capture="environment" class="hidden">
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 border-t border-base-300 pt-4">
+          <button type="submit" id="btn-save" class="btn btn-primary">Guardar visita</button>
+          <button type="button" data-action="cancel-form" class="btn btn-ghost">Cancelar</button>
+          <button type="button" data-action="delete-current" id="btn-delete-current" class="btn btn-error btn-outline ml-auto hidden">Eliminar visita</button>
+        </div>
+      </div>
+    </form>
+  </section>
+</main>
+
+<!-- ============================ MODALES ============================ -->
+
+<!-- Detalle -->
+<dialog id="dlg-detail" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
+    <div id="detail-body"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button aria-label="Cerrar">cerrar</button></form>
+</dialog>
+
+<!-- Enviar -->
+<dialog id="dlg-send" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
+    <h3 class="font-display text-xl font-bold">Enviar visitas al supervisor</h3>
+    <p class="mt-1 text-sm opacity-70">Se genera un archivo JSON con los datos y las fotos de las visitas que marques.</p>
+
+    <div class="mt-4">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Visitas a incluir</span>
+        <span id="send-size" class="text-xs opacity-70"></span>
+      </div>
+      <div id="send-list" class="mt-1 max-h-56 overflow-y-auto rounded-box border border-base-300"></div>
+    </div>
+
+    <div class="mt-4 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Cuenta de envío</legend>
+        <select id="send-tipo" class="select w-full">
+          <option value="personal">Personal o educativa (provisional)</option>
+          <option value="docente">Docente</option>
+        </select>
+      </fieldset>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Tu correo</legend>
+        <input id="send-from" type="email" class="input w-full" placeholder="tucorreo@ejemplo.com" autocomplete="email">
+      </fieldset>
+      <fieldset class="fieldset sm:col-span-2">
+        <legend class="fieldset-legend">Correo del supervisor de departamento</legend>
+        <input id="send-to" type="email" class="input w-full" placeholder="supervisor@ejemplo.com">
+      </fieldset>
+    </div>
+    <p class="text-xs opacity-70">Para las pruebas se usa una cuenta personal o educativa. Cuando pases a la cuenta docente, cambia la cuenta de envío y tu correo.</p>
+    <p id="send-err" class="text-error mt-2 text-sm hidden"></p>
+
+    <div class="modal-action flex-wrap">
+      <form method="dialog"><button class="btn btn-ghost">Cerrar</button></form>
+      <button type="button" data-action="download-json" class="btn" id="btn-download"></button>
+      <button type="button" data-action="mail-json" class="btn btn-primary" id="btn-mail"></button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button aria-label="Cerrar">cerrar</button></form>
+</dialog>
+
+<!-- Confirmación -->
+<dialog id="dlg-confirm" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <h3 id="confirm-title" class="font-display text-lg font-bold">Eliminar visita</h3>
+    <p id="confirm-msg" class="py-3"></p>
+    <form method="dialog" class="modal-action">
+      <button value="cancel" class="btn btn-ghost">Cancelar</button>
+      <button value="ok" id="confirm-ok" class="btn btn-error">Eliminar</button>
+    </form>
+  </div>
+</dialog>
+
+<!-- Foto ampliada -->
+<dialog id="dlg-photo" class="modal">
+  <div class="modal-box max-w-4xl p-2">
+    <img id="photo-big" alt="" class="max-h-[80vh] w-full rounded-field object-contain">
+  </div>
+  <form method="dialog" class="modal-backdrop"><button aria-label="Cerrar">cerrar</button></form>
+</dialog>
+
+<div id="toasts" class="toast toast-top toast-end z-50" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   CONFIGURACIÓN
+   ===================================================================== */
+const KEY = 'siu.visitas.v1';
+const KEY_CFG = 'siu.config.v1';
+const KEY_THEME = 'siu.tema';
+const MIN_FOTOS = 2;
+const MAX_FOTOS = 4;
+const OTROS = 'Otros';
+const DISTRITOS = ['Alanje', 'Barú', 'Boquerón', 'Boquete', 'Bugaba', 'David', 'Dolega',
+  'Gualaca', 'Remedios', 'Renacimiento', 'San Félix', 'San Lorenzo', 'Tolé'];
+
+// Opcional: si tienes un backend que reciba el JSON, escribe aquí su URL (POST).
+// Con la URL vacía se usa "compartir archivo" (móvil) o descarga + correo (mailto).
+const ENDPOINT_ENVIO = '';
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const startOfWeek = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); };
+const uid = () => 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+const F = {
+  corta: new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' }),
+  larga: new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+  mes: new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' }),
+  dm: new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short' }),
+  wk: new Intl.DateTimeFormat('es', { weekday: 'short' }),
+  wkl: new Intl.DateTimeFormat('es', { weekday: 'long' }),
+};
+const DIAS_CORTOS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+
+function load(key, def) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v ?? def; } catch { return def; }
+}
+
+/* Iconos (trazos estilo Lucide) */
+const ICONS = {
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  trash: '<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+};
+const icon = (n, cls = 'size-4') =>
+  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* =====================================================================
+   ESTADO
+   ===================================================================== */
+const state = {
+  visitas: load(KEY, []),
+  cfg: Object.assign({ tipo: 'personal', remitente: '', supervisor: '', persona: '' }, load(KEY_CFG, {})),
+  tab: 'agenda',
+  view: 'semana',
+  cursor: new Date(),
+  distrito: '',
+  q: '',
+  sel: new Set(),      // selección en la vista Lista
+  sendIds: new Set(),  // visitas marcadas en el modal de envío
+  editId: null,
+  fotos: [],
+  coords: null,
+};
+
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(state.visitas)); return true; }
+  catch {
+    toast('No hay espacio para guardar. Elimina visitas antiguas o usa menos fotos.', 'error');
+    return false;
+  }
+}
+function persistCfg() { try { localStorage.setItem(KEY_CFG, JSON.stringify(state.cfg)); } catch {} }
+
+const byId = id => state.visitas.find(v => v.id === id);
+const cmp = (a, b) => (a.dia + a.hora).localeCompare(b.dia + b.hora);
+const distritoLabel = v => (v.distrito === OTROS && v.distritoOtro) ? `Otros: ${v.distritoOtro}` : v.distrito;
+
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  return state.visitas
+    .filter(v => (!state.distrito || v.distrito === state.distrito) &&
+      (!q || `${v.colegio} ${v.persona} ${v.ubicacion}`.toLowerCase().includes(q)))
+    .sort(cmp);
+}
+
+function periodRange() {
+  const c = state.cursor;
+  if (state.view === 'semana') { const s = startOfWeek(c); return [s, addDays(s, 6)]; }
+  if (state.view === 'mes') return [new Date(c.getFullYear(), c.getMonth(), 1), new Date(c.getFullYear(), c.getMonth() + 1, 0)];
+  return [null, null];
+}
+
+/* =====================================================================
+   AVISOS Y CONFIRMACIÓN
+   ===================================================================== */
+function toast(msg, type = 'success', action) {
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} shadow-lg`;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  el.innerHTML = `<span>${esc(msg)}</span>`;
+  if (action) {
+    const b = document.createElement('button');
+    b.className = 'btn btn-sm';
+    b.textContent = action.label;
+    b.onclick = () => { action.fn(); el.remove(); };
+    el.appendChild(b);
+  }
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), action ? 12000 : 4500);
+}
+
+function confirmar(msg, okLabel = 'Eliminar') {
+  return new Promise(resolve => {
+    const d = $('#dlg-confirm');
+    $('#confirm-msg').textContent = msg;
+    $('#confirm-ok').textContent = okLabel;
+    d.returnValue = '';
+    d.onclose = () => resolve(d.returnValue === 'ok');
+    d.showModal();
+  });
+}
+
+/* =====================================================================
+   PESTAÑAS
+   ===================================================================== */
+function setTab(t) {
+  state.tab = t;
+  $('#sec-agenda').classList.toggle('hidden', t !== 'agenda');
+  $('#sec-form').classList.toggle('hidden', t !== 'form');
+  $('#tab-agenda').classList.toggle('tab-active', t === 'agenda');
+  $('#tab-form').classList.toggle('tab-active', t === 'form');
+  window.scrollTo({ top: 0 });
+  if (t === 'agenda') renderAgenda();
+}
+
+/* =====================================================================
+   AGENDA
+   ===================================================================== */
+function renderAgenda() {
+  const all = filtered();
+  const [a, b] = periodRange();
+  const list = a ? all.filter(v => v.dia >= iso(a) && v.dia <= iso(b)) : all;
+
+  // Controles
+  $$('#view-switch [data-view]').forEach(btn => btn.classList.toggle('btn-primary', btn.dataset.view === state.view));
+  $('#period-nav').classList.toggle('hidden', state.view === 'lista');
+  $('#period-label').textContent =
+    state.view === 'semana' ? `${F.dm.format(a)} al ${F.dm.format(b)} de ${b.getFullYear()}` :
+    state.view === 'mes' ? F.mes.format(state.cursor) : 'Todas las visitas';
+
+  // Resumen
+  const est = list.reduce((s, v) => s + Number(v.estudiantes || 0), 0);
+  const pend = state.visitas.filter(v => !v.enviadoEn).length;
+  let sum = `<span><strong>${list.length}</strong> ${list.length === 1 ? 'visita' : 'visitas'}</span>
+    <span><strong>${est.toLocaleString('es')}</strong> estudiantes</span>`;
+  if (state.view !== 'lista') {
+    sum += `<span class="flex items-center gap-1.5"><span class="inline-block size-2.5 rounded-sm bg-secondary"></span>Pendiente de envío</span>
+            <span class="flex items-center gap-1.5"><span class="inline-block size-2.5 rounded-sm bg-success"></span>Enviada</span>`;
+  } else if (state.sel.size) {
+    sum += `<button data-action="send-selected" class="btn btn-sm btn-primary">${icon('send')} Enviar ${state.sel.size} seleccionada${state.sel.size > 1 ? 's' : ''}</button>`;
+  }
+  $('#agenda-summary').innerHTML = sum;
+
+  // Cuerpo
+  const body = $('#agenda-body');
+  if (!state.visitas.length) {
+    body.innerHTML = `<div class="rounded-box border border-base-300 bg-base-100 p-8 text-center">
+      <p class="font-display text-xl font-semibold">Todavía no hay visitas</p>
+      <p class="mt-1 text-sm opacity-70">Cuando guardes la primera, aparecerá en tu agenda semanal y mensual.</p>
+      <button data-action="new" class="btn btn-primary mt-4">${icon('plus')} Registrar visita</button></div>`;
+  } else if (state.view === 'semana') body.innerHTML = weekHTML(list);
+  else if (state.view === 'mes') body.innerHTML = monthHTML(list);
+  else body.innerHTML = listHTML(list);
+
+  $('#pending-count').textContent = pend;
+}
+
+function visitCard(v) {
+  const sent = !!v.enviadoEn;
+  return `<button type="button" data-action="view" data-id="${v.id}"
+      class="w-full rounded-field border border-base-300 ${sent ? 'edge-sent' : 'edge-pend'} bg-base-100 p-2 text-left hover:bg-base-200">
+    <span class="flex items-baseline justify-between gap-2">
+      <span class="font-display text-xl font-bold leading-none tabular-nums">${v.hora}</span>
+      <span class="text-xs opacity-70">${v.fotos.length} fotos</span>
+    </span>
+    <span class="mt-1 block text-sm font-medium leading-snug line-clamp-2">${esc(v.colegio)}</span>
+    <span class="block truncate text-xs opacity-70">${esc(distritoLabel(v))}</span>
+  </button>`;
+}
+
+function weekHTML(list) {
+  const s = startOfWeek(state.cursor), today = iso(new Date());
+  let h = '<div class="grid gap-3 lg:grid-cols-7">';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(s, i), k = iso(d), items = list.filter(v => v.dia === k), isToday = k === today;
+    h += `<section class="flex flex-col overflow-hidden rounded-box border ${isToday ? 'border-primary' : 'border-base-300'} bg-base-100">
+      <header class="flex items-center justify-between gap-2 px-3 py-2 ${isToday ? 'bg-primary text-primary-content' : 'bg-base-300/50'}">
+        <h3 class="font-display font-semibold capitalize">${F.wk.format(d)} ${d.getDate()}</h3>
+        <button data-action="new-on" data-date="${k}" class="btn btn-ghost btn-xs btn-square" aria-label="Registrar visita el ${esc(F.larga.format(d))}">${icon('plus')}</button>
+      </header>
+      <div class="flex flex-1 flex-col gap-2 p-2">
+        ${items.length ? items.map(visitCard).join('') : '<p class="px-1 py-1 text-xs opacity-60">Sin visitas</p>'}
+      </div></section>`;
+  }
+  return h + '</div>';
+}
+
+function monthHTML(list) {
+  const c = state.cursor, today = iso(new Date());
+  const first = new Date(c.getFullYear(), c.getMonth(), 1);
+  const days = new Date(c.getFullYear(), c.getMonth() + 1, 0).getDate();
+  const weeks = Math.ceil((((first.getDay() + 6) % 7) + days) / 7);
+  const start = startOfWeek(first);
+
+  let h = `<div class="overflow-hidden rounded-box border border-base-300">
+    <div class="grid grid-cols-7 bg-base-300/50 text-center text-xs font-semibold">
+      ${DIAS_CORTOS.map(n => `<div class="py-2 capitalize">${n}</div>`).join('')}
+    </div>
+    <div class="grid grid-cols-7 gap-px bg-base-300">`;
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = addDays(start, i), k = iso(d), inMonth = d.getMonth() === c.getMonth();
+    const items = list.filter(v => v.dia === k);
+    h += `<div data-action="goto-day" data-date="${k}" role="button" tabindex="0"
+        class="min-h-16 cursor-pointer p-1 sm:min-h-28 ${inMonth ? 'bg-base-100' : 'bg-base-200 opacity-60'} hover:bg-base-200">
+      <div class="flex items-center justify-between">
+        <span class="inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${k === today ? 'bg-primary text-primary-content' : ''}">${d.getDate()}</span>
+        ${items.length ? `<span class="badge badge-primary badge-sm sm:hidden">${items.length}</span>` : ''}
+      </div>
+      <div class="mt-1 hidden space-y-1 sm:block">
+        ${items.slice(0, 2).map(v => `<button type="button" data-action="view" data-id="${v.id}"
+            class="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-xs ${v.enviadoEn ? 'bg-success/20' : 'bg-secondary/30'}">
+            <span class="font-semibold tabular-nums">${v.hora}</span><span class="truncate">${esc(v.colegio)}</span></button>`).join('')}
+        ${items.length > 2 ? `<span class="block text-xs opacity-70">y ${items.length - 2} más</span>` : ''}
+      </div></div>`;
+  }
+  return h + '</div></div>';
+}
+
+function listHTML(list) {
+  if (!list.length) return `<div class="rounded-box border border-base-300 bg-base-100 p-6 text-center text-sm opacity-70">No hay visitas que coincidan con los filtros.</div>`;
+  const rows = list.slice().reverse().map(v => `<tr>
+    <td><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" data-sel="${v.id}" ${state.sel.has(v.id) ? 'checked' : ''} aria-label="Seleccionar ${esc(v.colegio)}"></td>
+    <td class="whitespace-nowrap">${F.corta.format(parse(v.dia))}</td>
+    <td class="font-display font-bold tabular-nums">${v.hora}</td>
+    <td class="min-w-48 font-medium">${esc(v.colegio)}</td>
+    <td>${esc(distritoLabel(v))}</td>
+    <td class="text-right tabular-nums">${Number(v.estudiantes).toLocaleString('es')}</td>
+    <td>${esc(v.persona)}</td>
+    <td>${v.fotos.length}</td>
+    <td>${v.enviadoEn ? '<span class="badge badge-success badge-soft badge-sm">Enviada</span>' : '<span class="badge badge-warning badge-soft badge-sm">Pendiente</span>'}</td>
+    <td class="whitespace-nowrap text-right">
+      <button data-action="view" data-id="${v.id}" class="btn btn-ghost btn-xs">Ver</button>
+      <button data-action="edit" data-id="${v.id}" class="btn btn-ghost btn-xs" aria-label="Editar ${esc(v.colegio)}">${icon('edit')}</button>
+      <button data-action="delete" data-id="${v.id}" class="btn btn-ghost btn-xs text-error" aria-label="Eliminar ${esc(v.colegio)}">${icon('trash')}</button>
+    </td></tr>`).join('');
+  return `<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+    <table class="table table-sm"><thead><tr>
+      <th><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" id="chk-all" aria-label="Seleccionar todas"></th>
+      <th>Día</th><th>Hora</th><th>Colegio</th><th>Distrito</th><th class="text-right">Estudiantes</th><th>Persona</th><th>Fotos</th><th>Estado</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function shiftPeriod(dir) {
+  const c = state.cursor;
+  state.cursor = state.view === 'semana' ? addDays(c, 7 * dir) : new Date(c.getFullYear(), c.getMonth() + dir, 1);
+  renderAgenda();
+}
+
+/* =====================================================================
+   DETALLE
+   ===================================================================== */
+function openDetail(id) {
+  const v = byId(id); if (!v) return;
+  $('#detail-body').innerHTML = `
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="font-display text-xl font-bold leading-tight">${esc(v.colegio)}</h3>
+        <p class="mt-1 text-sm capitalize opacity-70">${esc(F.larga.format(parse(v.dia)))}, ${v.hora} h</p>
+      </div>
+      ${v.enviadoEn ? '<span class="badge badge-success badge-soft">Enviada</span>' : '<span class="badge badge-warning badge-soft">Pendiente</span>'}
+    </div>
+    <dl class="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+      <div><dt class="font-semibold">Distrito</dt><dd>${esc(distritoLabel(v))}</dd></div>
+      <div><dt class="font-semibold">Cantidad de estudiantes</dt><dd>${Number(v.estudiantes).toLocaleString('es')}</dd></div>
+      <div class="sm:col-span-2"><dt class="font-semibold">Ubicación</dt><dd>${esc(v.ubicacion)}${v.coords ? ` <span class="opacity-70">(GPS ${v.coords.lat}, ${v.coords.lng})</span>` : ''}</dd></div>
+      <div class="sm:col-span-2"><dt class="font-semibold">Persona que visita</dt><dd>${esc(v.persona)}</dd></div>
+      <div class="sm:col-span-2"><dt class="font-semibold">Observación</dt><dd class="whitespace-pre-line">${esc(v.observacion)}</dd></div>
+    </dl>
+    <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      ${v.fotos.map((f, i) => `<button type="button" data-action="photo" data-id="${v.id}" data-i="${i}" class="aspect-square overflow-hidden rounded-field border border-base-300">
+        <img src="${f.dataUrl}" alt="Foto ${i + 1} de ${esc(v.colegio)}" class="size-full object-cover"></button>`).join('')}
+    </div>
+    <div class="modal-action flex-wrap">
+      <button data-action="delete" data-id="${v.id}" class="btn btn-error btn-outline mr-auto">${icon('trash')} Eliminar</button>
+      <button data-action="edit" data-id="${v.id}" class="btn">${icon('edit')} Editar</button>
+      <button data-action="send" data-id="${v.id}" class="btn btn-primary">${icon('send')} Enviar</button>
+    </div>`;
+  $('#dlg-detail').showModal();
+}
+
+/* =====================================================================
+   FORMULARIO (crear y actualizar)
+   ===================================================================== */
+function initFormControls() {
+  $('#f-distrito').innerHTML = '<option value="">Selecciona un distrito</option>' +
+    [...DISTRITOS, OTROS].map(d => `<option value="${d}">${d}</option>`).join('');
+  $('#flt-distrito').innerHTML = '<option value="">Todos los distritos</option>' +
+    [...DISTRITOS, OTROS].map(d => `<option value="${d}">${d}</option>`).join('');
+  $('#f-hh').innerHTML = Array.from({ length: 24 }, (_, i) => `<option value="${pad(i)}">${pad(i)}</option>`).join('');
+  $('#f-mm').innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${pad(i * 5)}">${pad(i * 5)}</option>`).join('');
+  $('#btn-pick').innerHTML = `${icon('image')} Elegir fotos`;
+  $('#btn-cam').innerHTML = `${icon('camera')} Tomar foto`;
+  $('#btn-gps').innerHTML = icon('pin', 'size-5');
+  $('#btn-prev').innerHTML = icon('left');
+  $('#btn-next').innerHTML = icon('right');
+  $('#btn-download').innerHTML = `${icon('download')} Descargar JSON`;
+  $('#btn-mail').innerHTML = `${icon('mail')} Enviar por correo`;
+}
+
+function openForm(rec, dateISO) {
+  clearErrors();
+  state.editId = rec ? rec.id : null;
+  state.fotos = rec ? rec.fotos.map(f => ({ ...f })) : [];
+  state.coords = rec?.coords || null;
+
+  $('#f-colegio').value = rec?.colegio || '';
+  $('#f-ubicacion').value = rec?.ubicacion || '';
+  $('#f-distrito').value = rec?.distrito || '';
+  $('#f-otro').value = rec?.distritoOtro || '';
+  $('#f-estudiantes').value = rec?.estudiantes ?? '';
+  $('#f-dia').value = rec?.dia || dateISO || iso(new Date());
+  const [hh, mm] = (rec?.hora || '08:00').split(':');
+  $('#f-hh').value = hh;
+  $('#f-mm').value = pad(Math.round(Number(mm) / 5) * 5 % 60);
+  $('#f-persona').value = rec?.persona || state.cfg.persona || '';
+  $('#f-obs').value = rec?.observacion || '';
+
+  toggleOtro();
+  showCoords();
+  renderFotos();
+
+  const editing = !!rec;
+  $('#form-title').textContent = editing ? 'Editar visita' : 'Registrar visita';
+  $('#tab-form').textContent = editing ? 'Editar visita' : 'Registrar visita';
+  $('#btn-save').textContent = editing ? 'Actualizar visita' : 'Guardar visita';
+  $('#edit-banner').classList.toggle('hidden', !editing);
+  $('#btn-delete-current').classList.toggle('hidden', !editing);
+  setTab('form');
+}
+
+function resetFormTab() { $('#tab-form').textContent = 'Registrar visita'; }
+function toggleOtro() { $('#wrap-otro').classList.toggle('hidden', $('#f-distrito').value !== OTROS); }
+function showCoords() {
+  $('#coords-hint').textContent = state.coords
+    ? `Coordenadas GPS guardadas: ${state.coords.lat}, ${state.coords.lng}`
+    : 'Escribe la dirección o una referencia. También puedes usar el botón de GPS.';
+}
+
+function usarGPS() {
+  if (!navigator.geolocation) return toast('Este navegador no permite obtener la ubicación.', 'warning');
+  toast('Buscando tu ubicación…', 'info');
+  navigator.geolocation.getCurrentPosition(
+    p => {
+      state.coords = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) };
+      showCoords();
+      toast('Coordenadas guardadas con la visita.');
+    },
+    () => toast('No se pudo obtener la ubicación. Revisa el permiso del navegador.', 'error'),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+/* ---------- Fotos ---------- */
+function renderFotos() {
+  const n = state.fotos.length;
+  let h = state.fotos.map((f, i) => `<figure class="relative aspect-square overflow-hidden rounded-field border border-base-300">
+      <img src="${f.dataUrl}" alt="Foto ${i + 1}" class="size-full object-cover">
+      <button type="button" data-action="rm-foto" data-i="${i}" class="btn btn-circle btn-xs btn-neutral absolute right-1 top-1" aria-label="Quitar foto ${i + 1}">${icon('x', 'size-3')}</button>
+    </figure>`).join('');
+  for (let i = n; i < MAX_FOTOS; i++) {
+    h += `<div class="grid aspect-square place-items-center rounded-field border border-dashed border-base-300 p-2 text-center text-xs opacity-70">
+      Foto ${i + 1}<br>${i < MIN_FOTOS ? 'obligatoria' : 'opcional'}</div>`;
+  }
+  $('#foto-grid').innerHTML = h;
+  const c = $('#foto-count');
+  c.textContent = `${n} de ${MAX_FOTOS} fotos`;
+  c.className = `text-sm font-medium ${n >= MIN_FOTOS ? 'text-success' : 'text-warning-content'}`;
+  $('#btn-pick').disabled = $('#btn-cam').disabled = n >= MAX_FOTOS;
+}
+
+function compress(file, max = 1280, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = reject;
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+async function addFiles(fileList) {
+  const files = [...fileList];
+  const imgs = files.filter(f => f.type.startsWith('image/'));
+  if (imgs.length < files.length) toast('Solo se aceptan archivos de imagen.', 'warning');
+  const room = MAX_FOTOS - state.fotos.length;
+  if (imgs.length > room) toast(`El máximo es ${MAX_FOTOS} fotos. Se agregaron ${room}.`, 'warning');
+  for (const f of imgs.slice(0, room)) {
+    try {
+      state.fotos.push({
+        name: (f.name || `foto_${Date.now()}`).replace(/\.[^.]+$/, '') + '.jpg',
+        type: 'image/jpeg',
+        dataUrl: await compress(f),
+      });
+    } catch { toast(`No se pudo leer "${f.name}". Prueba con otro formato de imagen.`, 'error'); }
+  }
+  renderFotos();
+  setErr('fotos', '');
+}
+
+/* ---------- Validación ---------- */
+function setErr(name, msg) {
+  const p = $(`[data-err="${name}"]`);
+  if (!p) return;
+  p.textContent = msg;
+  p.classList.toggle('hidden', !msg);
+}
+function clearErrors() { $$('[data-err]').forEach(p => { p.textContent = ''; p.classList.add('hidden'); }); }
+
+function readForm() {
+  return {
+    colegio: $('#f-colegio').value.trim(),
+    ubicacion: $('#f-ubicacion').value.trim(),
+    distrito: $('#f-distrito').value,
+    distritoOtro: $('#f-otro').value.trim(),
+    estudiantes: $('#f-estudiantes').value,
+    dia: $('#f-dia').value,
+    hora: `${$('#f-hh').value}:${$('#f-mm').value}`,
+    persona: $('#f-persona').value.trim(),
+    observacion: $('#f-obs').value.trim(),
+  };
+}
+
+function validate(d) {
+  const e = {};
+  if (d.colegio.length < 3) e.colegio = 'Escribe el nombre del colegio.';
+  if (!d.ubicacion) e.ubicacion = 'Indica la ubicación del colegio.';
+  if (!d.distrito) e.distrito = 'Selecciona un distrito.';
+  if (d.distrito === OTROS && !d.distritoOtro) e.otro = 'Especifica el lugar.';
+  const n = Number(d.estudiantes);
+  if (!d.estudiantes || !Number.isInteger(n) || n < 1) e.estudiantes = 'Escribe un número entero mayor que 0.';
+  if (!d.dia) e.dia = 'Selecciona el día de la visita.';
+  if (!d.persona) e.persona = 'Escribe el nombre de quien realizó la visita.';
+  if (!d.observacion) e.obs = 'Escribe al menos una observación.';
+  if (state.fotos.length < MIN_FOTOS) e.fotos = `Adjunta al menos ${MIN_FOTOS} fotos. Tienes ${state.fotos.length}.`;
+  return e;
+}
+
+async function onSubmit(ev) {
+  ev.preventDefault();
+  clearErrors();
+  const d = readForm();
+  const errs = validate(d);
+  const keys = Object.keys(errs);
+  if (keys.length) {
+    keys.forEach(k => setErr(k, errs[k]));
+    toast('Revisa los campos marcados en rojo.', 'error');
+    const first = $(`[data-err="${keys[0]}"]`);
+    first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const prev = state.visitas.slice();
+  const now = new Date().toISOString();
+  const data = { ...d, estudiantes: Number(d.estudiantes), fotos: state.fotos.map(f => ({ ...f })), coords: state.coords };
+  let rec;
+  if (state.editId) {
+    const i = state.visitas.findIndex(v => v.id === state.editId);
+    rec = { ...state.visitas[i], ...data, actualizadoEn: now, enviadoEn: null };
+    state.visitas[i] = rec;
+  } else {
+    rec = { id: uid(), ...data, creadoEn: now, enviadoEn: null };
+    state.visitas.push(rec);
+  }
+  if (!persist()) { state.visitas = prev; return; }
+
+  state.cfg.persona = d.persona;
+  persistCfg();
+  const editing = !!state.editId;
+  state.editId = null;
+  resetFormTab();
+  state.cursor = parse(rec.dia);
+  setTab('agenda');
+  toast(editing ? 'Visita actualizada. Quedó pendiente de envío.' : 'Visita guardada.', 'success',
+    { label: 'Enviar ahora', fn: () => openSend([rec.id]) });
+}
+
+async function eliminar(id) {
+  const v = byId(id); if (!v) return;
+  if ($('#dlg-detail').open) $('#dlg-detail').close();
+  const ok = await confirmar(`Se eliminará la visita a "${v.colegio}" del ${F.corta.format(parse(v.dia))}. Podrás deshacerlo unos segundos.`);
+  if (!ok) return;
+  const prev = state.visitas.slice();
+  state.visitas = state.visitas.filter(x => x.id !== id);
+  state.sel.delete(id);
+  if (!persist()) { state.visitas = prev; return; }
+  if (state.editId === id) { state.editId = null; resetFormTab(); setTab('agenda'); } else renderAgenda();
+  toast('Visita eliminada.', 'success', {
+    label: 'Deshacer',
+    fn: () => { state.visitas.push(v); persist(); renderAgenda(); },
+  });
+}
+
+/* =====================================================================
+   ENVÍO (JSON + correo)
+   ===================================================================== */
+function openSend(ids) {
+  if (!state.visitas.length) return toast('Aún no hay visitas para enviar.', 'warning');
+  if (!ids.length) return toast('No hay visitas pendientes. Puedes marcar otras en la lista.', 'info');
+  if ($('#dlg-detail').open) $('#dlg-detail').close();
+  state.sendIds = new Set(ids);
+  renderSend();
+  $('#dlg-send').showModal();
+}
+
+function renderSend() {
+  const list = state.visitas.slice().sort(cmp).reverse();
+  $('#send-list').innerHTML = list.map(v => `<label class="flex cursor-pointer items-start gap-3 px-3 py-2 hover:bg-base-200">
+      <input type="checkbox" class="checkbox checkbox-sm checkbox-primary mt-0.5" data-send="${v.id}" ${state.sendIds.has(v.id) ? 'checked' : ''}>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-medium">${esc(v.colegio)}</span>
+        <span class="block text-xs opacity-70">${F.corta.format(parse(v.dia))} a las ${v.hora}, ${v.fotos.length} fotos</span>
+      </span>
+      ${v.enviadoEn ? '<span class="badge badge-success badge-soft badge-sm">Enviada</span>' : '<span class="badge badge-warning badge-soft badge-sm">Pendiente</span>'}
+    </label>`).join('');
+  $('#send-tipo').value = state.cfg.tipo;
+  $('#send-from').value = state.cfg.remitente;
+  $('#send-to').value = state.cfg.supervisor;
+  $('#send-err').classList.add('hidden');
+  updateSendSize();
+}
+
+function updateSendSize() {
+  const ids = [...state.sendIds];
+  const bytes = state.visitas.filter(v => ids.includes(v.id))
+    .reduce((s, v) => s + v.fotos.reduce((t, f) => t + f.dataUrl.length * 0.75, 0), 0);
+  const mb = bytes / 1048576;
+  $('#send-size').textContent = `${ids.length} seleccionada${ids.length === 1 ? '' : 's'}, aprox. ${mb.toFixed(1)} MB`;
+}
+
+function buildPayload(ids) {
+  const rows = state.visitas.filter(v => ids.includes(v.id)).sort(cmp);
+  return {
+    version: '1.0',
+    generadoEn: new Date().toISOString(),
+    remitente: { tipoCuenta: state.cfg.tipo === 'docente' ? 'Docente' : 'Personal o educativa', correo: state.cfg.remitente },
+    destinatario: { correo: state.cfg.supervisor },
+    totalRegistros: rows.length,
+    registros: rows.map(v => ({
+      id: v.id,
+      nombreColegio: v.colegio,
+      ubicacion: v.ubicacion,
+      coordenadas: v.coords || null,
+      distrito: distritoLabel(v),
+      cantidadEstudiantes: v.estudiantes,
+      dia: v.dia,
+      diaSemana: F.wkl.format(parse(v.dia)),
+      hora: v.hora,
+      observacion: v.observacion,
+      nombrePersona: v.persona,
+      fotos: v.fotos.map(f => ({ nombre: f.name, tipo: f.type, base64: f.dataUrl.split(',')[1] })),
+    })),
+  };
+}
+
+/* Lee y valida el modal. Devuelve los ids o null si hay errores. */
+function readSend() {
+  const ids = [...state.sendIds];
+  const from = $('#send-from').value.trim(), to = $('#send-to').value.trim();
+  const err = $('#send-err');
+  let msg = '';
+  if (!ids.length) msg = 'Marca al menos una visita.';
+  else if (!validEmail(to)) msg = 'Escribe un correo válido para el supervisor.';
+  else if (from && !validEmail(from)) msg = 'Tu correo no es válido.';
+  err.textContent = msg;
+  err.classList.toggle('hidden', !msg);
+  if (msg) return null;
+  state.cfg.tipo = $('#send-tipo').value;
+  state.cfg.remitente = from;
+  state.cfg.supervisor = to;
+  persistCfg();
+  return ids;
+}
+
+const nombreArchivo = () => { const n = new Date(); return `visitas_siu_${n.getFullYear()}${pad(n.getMonth() + 1)}${pad(n.getDate())}_${pad(n.getHours())}${pad(n.getMinutes())}.json`; };
+
+function descargar(texto, nombre) {
+  const url = URL.createObjectURL(new Blob([texto], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function marcarEnviadas(ids) {
+  const now = new Date().toISOString();
+  state.visitas.forEach(v => { if (ids.includes(v.id)) v.enviadoEn = now; });
+  persist();
+  state.sel.clear();
+  renderAgenda();
+}
+
+function descargarJSON() {
+  const ids = readSend(); if (!ids) return;
+  descargar(JSON.stringify(buildPayload(ids), null, 2), nombreArchivo());
+  toast('Archivo JSON descargado.');
+}
+
+async function enviarPorCorreo() {
+  const ids = readSend(); if (!ids) return;
+  const json = JSON.stringify(buildPayload(ids), null, 2);
+  const nombre = nombreArchivo();
+  const asunto = `Visitas a colegios: ${ids.length} ${ids.length === 1 ? 'registro' : 'registros'}`;
+  const cuerpo = `Hola,\n\nAdjunto el archivo ${nombre} con ${ids.length} ${ids.length === 1 ? 'visita' : 'visitas'} a colegios, incluidas las fotos.\n\nSaludos,\n${state.cfg.persona || ''}`;
+
+  // 1) Backend propio (si configuraste ENDPOINT_ENVIO)
+  if (ENDPOINT_ENVIO) {
+    try {
+      const r = await fetch(ENDPOINT_ENVIO, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json });
+      if (!r.ok) throw new Error(r.status);
+      marcarEnviadas(ids); $('#dlg-send').close();
+      return toast('Visitas enviadas al servidor.');
+    } catch { return toast('No se pudo enviar al servidor. Intenta de nuevo.', 'error'); }
+  }
+
+  // 2) Compartir el archivo directamente (móviles compatibles)
+  const file = new File([json], nombre, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: asunto, text: cuerpo });
+      marcarEnviadas(ids); $('#dlg-send').close();
+      return toast('Visitas compartidas.');
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
+
+  // 3) Descarga el JSON y abre el correo (el navegador no puede adjuntar solo)
+  descargar(json, nombre);
+  const cc = state.cfg.remitente ? `&cc=${encodeURIComponent(state.cfg.remitente)}` : '';
+  location.href = `mailto:${encodeURIComponent(state.cfg.supervisor)}?subject=${encodeURIComponent(asunto)}${cc}&body=${encodeURIComponent(cuerpo)}`;
+  $('#dlg-send').close();
+  toast(`Se descargó ${nombre} y se abrió tu correo. Adjunta el archivo y envíalo.`, 'info',
+    { label: 'Ya lo envié', fn: () => marcarEnviadas(ids) });
+}
+
+/* =====================================================================
+   TEMA
+   ===================================================================== */
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem(KEY_THEME, t); } catch {}
+  $('#btn-theme').innerHTML = t === 'siu-dark' ? icon('sun', 'size-5') : icon('moon', 'size-5');
+}
+
+/* =====================================================================
+   EVENTOS
+   ===================================================================== */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const { action: a, id, date } = el.dataset;
+  switch (a) {
+    case 'theme': applyTheme(document.documentElement.dataset.theme === 'siu-dark' ? 'siu' : 'siu-dark'); break;
+    case 'tab':
+      if (el.dataset.tab === 'form' && state.tab !== 'form') openForm(null); else setTab(el.dataset.tab);
+      break;
+    case 'set-view': state.view = el.dataset.view; renderAgenda(); break;
+    case 'prev': shiftPeriod(-1); break;
+    case 'next': shiftPeriod(1); break;
+    case 'today': state.cursor = new Date(); renderAgenda(); break;
+    case 'new': openForm(null); break;
+    case 'new-on': openForm(null, date); break;
+    case 'goto-day': state.cursor = parse(date); state.view = 'semana'; renderAgenda(); break;
+    case 'view': openDetail(id); break;
+    case 'edit': if ($('#dlg-detail').open) $('#dlg-detail').close(); openForm(byId(id)); break;
+    case 'delete': eliminar(id); break;
+    case 'delete-current': if (state.editId) eliminar(state.editId); break;
+    case 'send': openSend([id]); break;
+    case 'send-pending': openSend(state.visitas.filter(v => !v.enviadoEn).map(v => v.id)); break;
+    case 'send-selected': openSend([...state.sel]); break;
+    case 'download-json': descargarJSON(); break;
+    case 'mail-json': enviarPorCorreo(); break;
+    case 'gps': usarGPS(); break;
+    case 'pick-files': $('#f-file').click(); break;
+    case 'pick-cam': $('#f-cam').click(); break;
+    case 'rm-foto': state.fotos.splice(Number(el.dataset.i), 1); renderFotos(); break;
+    case 'photo': {
+      const f = byId(id)?.fotos[Number(el.dataset.i)];
+      if (f) { $('#photo-big').src = f.dataUrl; $('#dlg-photo').showModal(); }
+      break;
+    }
+    case 'cancel-form':
+      state.editId = null;
+      resetFormTab();
+      setTab('agenda');
+      break;
+  }
+});
+
+// Accesibilidad: activar las celdas del mes con Enter o espacio
+document.addEventListener('keydown', e => {
+  const cell = e.target.closest?.('[data-action="goto-day"]');
+  if (cell && cell === e.target && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); cell.click(); }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.matches('[data-sel]')) { t.checked ? state.sel.add(t.dataset.sel) : state.sel.delete(t.dataset.sel); renderAgenda(); }
+  else if (t.id === 'chk-all') {
+    const ids = filtered().map(v => v.id);
+    state.sel = t.checked ? new Set(ids) : new Set();
+    renderAgenda();
+  }
+  else if (t.matches('[data-send]')) { t.checked ? state.sendIds.add(t.dataset.send) : state.sendIds.delete(t.dataset.send); updateSendSize(); }
+  else if (t.id === 'f-distrito') toggleOtro();
+  else if (t.id === 'flt-distrito') { state.distrito = t.value; renderAgenda(); }
+  else if (t.id === 'f-file' || t.id === 'f-cam') { addFiles(t.files); t.value = ''; }
+});
+
+$('#flt-q').addEventListener('input', e => { state.q = e.target.value; renderAgenda(); });
+$('#visit-form').addEventListener('submit', onSubmit);
+
+// Arrastrar y soltar fotos
+const drop = $('#foto-drop');
+['dragenter', 'dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('bg-base-200'); }));
+['dragleave', 'drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('bg-base-200'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+/* =====================================================================
+   INICIO
+   ===================================================================== */
+initFormControls();
+applyTheme(document.documentElement.getAttribute('data-theme') || 'siu');
+renderAgenda();
+})();
+</script>
+</body>
+</html>
