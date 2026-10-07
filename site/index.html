@@ -358,6 +358,7 @@ const DISTRITOS = ['Alanje', 'Barú', 'Boquerón', 'Boquete', 'Bugaba', 'David',
 
 // Opcional: si tienes un backend que reciba el JSON, escribe aquí su URL (POST).
 // Con la URL vacía se usa "compartir archivo" (móvil) o descarga + correo (mailto).
+const API_BASE_URL = 'http://127.0.0.1:8000';
 const ENDPOINT_ENVIO = '';
 
 /* =====================================================================
@@ -435,7 +436,42 @@ function persist() {
 }
 function persistCfg() { try { localStorage.setItem(KEY_CFG, JSON.stringify(state.cfg)); } catch {} }
 
-const byId = id => state.visitas.find(v => v.id === id);
+async function loadVisitsFromAPI() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/visits`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const visits = await response.json();
+
+    state.visitas = visits.map(v => ({
+      ...v,
+      coords: v.latitud != null && v.longitud != null
+        ? {
+            lat: v.latitud,
+            lng: v.longitud,
+          }
+        : null,
+      fotos: [],
+      enviadoEn: null,
+    }));
+
+    renderAgenda();
+
+    console.log(`Cargadas ${state.visitas.length} visitas desde FastAPI`);
+  } catch (error) {
+    console.error('Error cargando visitas:', error);
+    toast(
+      'No se pudo conectar con el servidor.',
+      'error'
+    );
+  }
+}
+
+const byId = id =>
+  state.visitas.find(v => String(v.id) === String(id));
 const cmp = (a, b) => (a.dia + a.hora).localeCompare(b.dia + b.hora);
 const distritoLabel = v => (v.distrito === OTROS && v.distritoOtro) ? `Otros: ${v.distritoOtro}` : v.distrito;
 
@@ -835,57 +871,182 @@ function validate(d) {
 
 async function onSubmit(ev) {
   ev.preventDefault();
+
   clearErrors();
+
   const d = readForm();
   const errs = validate(d);
   const keys = Object.keys(errs);
+
   if (keys.length) {
     keys.forEach(k => setErr(k, errs[k]));
-    toast('Revisa los campos marcados en rojo.', 'error');
+
+    toast(
+      'Revisa los campos marcados en rojo.',
+      'error'
+    );
+
     const first = $(`[data-err="${keys[0]}"]`);
-    first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    first?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
     return;
   }
 
-  const prev = state.visitas.slice();
-  const now = new Date().toISOString();
-  const data = { ...d, estudiantes: Number(d.estudiantes), fotos: state.fotos.map(f => ({ ...f })), coords: state.coords };
-  let rec;
-  if (state.editId) {
-    const i = state.visitas.findIndex(v => v.id === state.editId);
-    rec = { ...state.visitas[i], ...data, actualizadoEn: now, enviadoEn: null };
-    state.visitas[i] = rec;
-  } else {
-    rec = { id: uid(), ...data, creadoEn: now, enviadoEn: null };
-    state.visitas.push(rec);
-  }
-  if (!persist()) { state.visitas = prev; return; }
+  const payload = {
+    colegio: d.colegio,
+    ubicacion: d.ubicacion,
+    distrito: d.distrito,
+    distritoOtro: d.distritoOtro || null,
+    estudiantes: Number(d.estudiantes),
+    dia: d.dia,
+    hora: d.hora,
+    persona: d.persona,
+    observacion: d.observacion,
+    latitud: state.coords?.lat ?? null,
+    longitud: state.coords?.lng ?? null,
+  };
 
-  state.cfg.persona = d.persona;
-  persistCfg();
   const editing = !!state.editId;
-  state.editId = null;
-  resetFormTab();
-  state.cursor = parse(rec.dia);
-  setTab('agenda');
-  toast(editing ? 'Visita actualizada. Quedó pendiente de envío.' : 'Visita guardada.', 'success',
-    { label: 'Enviar ahora', fn: () => openSend([rec.id]) });
+
+  try {
+    const url = editing
+      ? `${API_BASE_URL}/visits/${state.editId}`
+      : `${API_BASE_URL}/visits`;
+
+    const response = await fetch(url, {
+      method: editing ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error);
+    }
+
+    const saved = await response.json();
+
+    const record = {
+      ...saved,
+
+      coords:
+        saved.latitud != null && saved.longitud != null
+          ? {
+              lat: saved.latitud,
+              lng: saved.longitud,
+            }
+          : null,
+
+      // Temporary: photos remain client-side.
+      fotos: state.fotos.map(f => ({ ...f })),
+
+      creadoEn: new Date().toISOString(),
+      enviadoEn: null,
+    };
+
+    if (editing) {
+      const index = state.visitas.findIndex(
+        v => String(v.id) === String(state.editId)
+      );
+
+      if (index !== -1) {
+        state.visitas[index] = {
+          ...state.visitas[index],
+          ...record,
+        };
+      }
+    } else {
+      state.visitas.push(record);
+    }
+
+    state.cfg.persona = d.persona;
+    persistCfg();
+
+    state.editId = null;
+
+    resetFormTab();
+
+    state.cursor = parse(record.dia);
+
+    setTab('agenda');
+
+    toast(
+      editing
+        ? 'Visita actualizada correctamente.'
+        : 'Visita guardada correctamente.',
+      'success'
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    toast(
+      'No se pudo guardar la visita en el servidor.',
+      'error'
+    );
+  }
 }
 
 async function eliminar(id) {
-  const v = byId(id); if (!v) return;
-  if ($('#dlg-detail').open) $('#dlg-detail').close();
-  const ok = await confirmar(`Se eliminará la visita a "${v.colegio}" del ${F.corta.format(parse(v.dia))}. Podrás deshacerlo unos segundos.`);
+  const v = byId(id);
+
+  if (!v) return;
+
+  if ($('#dlg-detail').open) {
+    $('#dlg-detail').close();
+  }
+
+  const ok = await confirmar(
+    `Se eliminará la visita a "${v.colegio}" del ${F.corta.format(parse(v.dia))}.`
+  );
+
   if (!ok) return;
-  const prev = state.visitas.slice();
-  state.visitas = state.visitas.filter(x => x.id !== id);
-  state.sel.delete(id);
-  if (!persist()) { state.visitas = prev; return; }
-  if (state.editId === id) { state.editId = null; resetFormTab(); setTab('agenda'); } else renderAgenda();
-  toast('Visita eliminada.', 'success', {
-    label: 'Deshacer',
-    fn: () => { state.visitas.push(v); persist(); renderAgenda(); },
-  });
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/visits/${id}`,
+      {
+        method: 'DELETE',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    state.visitas = state.visitas.filter(
+      x => String(x.id) !== String(id)
+    );
+
+    state.sel.delete(id);
+
+    if (state.editId === id) {
+      state.editId = null;
+      resetFormTab();
+      setTab('agenda');
+    } else {
+      renderAgenda();
+    }
+
+    toast(
+      'Visita eliminada correctamente.',
+      'success'
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    toast(
+      'No se pudo eliminar la visita.',
+      'error'
+    );
+  }
 }
 
 /* =====================================================================
@@ -1116,8 +1277,14 @@ drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
    INICIO
    ===================================================================== */
 initFormControls();
-applyTheme(document.documentElement.getAttribute('data-theme') || 'siu');
+
+applyTheme(
+  document.documentElement.getAttribute('data-theme') || 'siu'
+);
+
 renderAgenda();
+
+loadVisitsFromAPI();
 })();
 </script>
 </body>
