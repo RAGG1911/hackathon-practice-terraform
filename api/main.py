@@ -1,14 +1,30 @@
+import os
+import uuid
+from pathlib import Path
+
+from azure.storage.blob import BlobServiceClient, ContentSettings
+
 from datetime import date, time
 from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import (
+    FastAPI,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+)
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-from models import Visit
+from models import Visit, Photo
 
+STORAGE_CONNECTION_STRING = os.getenv("STORAGE_CONNECTION_STRING")
+STORAGE_CONTAINER_NAME = "visit-photos"
+MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
 
 Base.metadata.create_all(bind=engine)
 
@@ -109,7 +125,122 @@ def create_visit(
         "latitud": new_visit.latitud,
         "longitud": new_visit.longitud,
     }
+    
 
+@app.post("/visits/{visit_id}/photos")
+async def upload_photo(
+    visit_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    visit = db.query(Visit).filter(
+        Visit.id == visit_id
+    ).first()
+
+    if visit is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Visita no encontrada",
+        )
+
+    allowed_types = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de imagen no permitido",
+        )
+
+    if not STORAGE_CONNECTION_STRING:
+        raise HTTPException(
+            status_code=503,
+            detail="Almacenamiento de imágenes no configurado",
+        )
+
+    # Read at most 10 MB plus one byte to detect oversized files.
+    contents = await file.read(MAX_PHOTO_SIZE + 1)
+
+    if not contents:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo está vacío",
+        )
+
+    if len(contents) > MAX_PHOTO_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="La imagen no puede superar los 10 MB",
+        )
+
+    original_filename = Path(file.filename or "photo").name
+    blob_name = (
+        f"visits/{visit_id}/"
+        f"{uuid.uuid4().hex}{allowed_types[file.content_type]}"
+    )
+
+    blob_client = None
+
+    try:
+        blob_service = BlobServiceClient.from_connection_string(
+            STORAGE_CONNECTION_STRING
+        )
+
+        blob_client = blob_service.get_blob_client(
+            container=STORAGE_CONTAINER_NAME,
+            blob=blob_name,
+        )
+
+        blob_client.upload_blob(
+            contents,
+            overwrite=False,
+            content_settings=ContentSettings(
+                content_type=file.content_type
+            ),
+        )
+
+        photo = Photo(
+            visit_id=visit_id,
+            filename=original_filename[:255],
+            blob_name=blob_name,
+            content_type=file.content_type,
+            url=None,
+        )
+
+        db.add(photo)
+        db.commit()
+        db.refresh(photo)
+
+        return {
+            "id": photo.id,
+            "visit_id": photo.visit_id,
+            "filename": photo.filename,
+            "blob_name": photo.blob_name,
+            "content_type": photo.content_type,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        db.rollback()
+
+        if blob_client is not None:
+            try:
+                blob_client.delete_blob()
+            except Exception:
+                pass
+
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo guardar la imagen",
+        )
+
+    finally:
+        await file.close()
 
 # -------------------------
 # READ ALL

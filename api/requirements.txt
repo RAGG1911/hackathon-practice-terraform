@@ -2,4 +2,5 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 psycopg[binary]
-python-multipart
+python-multipartazure-storage-blob
+azure-storage-blob
