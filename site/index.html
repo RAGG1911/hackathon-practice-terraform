@@ -454,7 +454,7 @@ async function loadVisitsFromAPI() {
             lng: v.longitud,
           }
         : null,
-      fotos: [],
+      fotos: (v.fotos || []).map(normalizePhoto),
       enviadoEn: null,
     }));
 
@@ -688,7 +688,7 @@ function openDetail(id) {
     </dl>
     <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
       ${v.fotos.map((f, i) => `<button type="button" data-action="photo" data-id="${v.id}" data-i="${i}" class="aspect-square overflow-hidden rounded-field border border-base-300">
-        <img src="${f.dataUrl}" alt="Foto ${i + 1} de ${esc(v.colegio)}" class="size-full object-cover"></button>`).join('')}
+        <img src="${f.dataUrl || f.url}" alt="Foto ${i + 1} de ${esc(v.colegio)}" class="size-full object-cover"></button>`).join('')}
     </div>
     <div class="modal-action flex-wrap">
       <button data-action="delete" data-id="${v.id}" class="btn btn-error btn-outline mr-auto">${icon('trash')} Eliminar</button>
@@ -774,7 +774,7 @@ function usarGPS() {
 function renderFotos() {
   const n = state.fotos.length;
   let h = state.fotos.map((f, i) => `<figure class="relative aspect-square overflow-hidden rounded-field border border-base-300">
-      <img src="${f.dataUrl}" alt="Foto ${i + 1}" class="size-full object-cover">
+      <img src="${f.dataUrl || f.url}" alt="Foto ${i + 1}" class="size-full object-cover">
       <button type="button" data-action="rm-foto" data-i="${i}" class="btn btn-circle btn-xs btn-neutral absolute right-1 top-1" aria-label="Quitar foto ${i + 1}">${icon('x', 'size-3')}</button>
     </figure>`).join('');
   for (let i = n; i < MAX_FOTOS; i++) {
@@ -869,6 +869,83 @@ function validate(d) {
   return e;
 }
 
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/data:(.*?);base64/)?.[1] || 'image/jpeg';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
+}
+
+function normalizePhoto(photo) {
+  return {
+    ...photo,
+    name: photo.name || photo.filename,
+    type: photo.type || photo.content_type,
+    url: photo.url
+      ? (photo.url.startsWith('http')
+          ? photo.url
+          : `${API_BASE_URL}${photo.url}`)
+      : null,
+  };
+}
+
+async function uploadVisitPhotos(visitId, photos) {
+  const uploaded = [];
+  const errors = [];
+
+  for (const photo of photos) {
+    // Existing server-side photos do not need to be uploaded again.
+    if (photo.id && photo.url && !photo.dataUrl) {
+      uploaded.push(normalizePhoto(photo));
+      continue;
+    }
+
+    if (!photo.dataUrl) continue;
+
+    try {
+      const formData = new FormData();
+
+      formData.append(
+        'file',
+        dataUrlToBlob(photo.dataUrl),
+        photo.name || 'foto.jpg'
+      );
+
+      const response = await fetch(
+        `${API_BASE_URL}/visits/${visitId}/photos`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const savedPhoto = await response.json();
+
+      uploaded.push(normalizePhoto({
+        id: savedPhoto.id,
+        name: savedPhoto.filename,
+        type: savedPhoto.content_type,
+        url: `/photos/${savedPhoto.id}/content`,
+      }));
+    } catch (error) {
+      console.error('Error subiendo foto:', photo.name, error);
+      errors.push(photo.name || 'Foto');
+    }
+  }
+
+  return { fotos: uploaded, errors };
+}
+
 async function onSubmit(ev) {
   ev.preventDefault();
 
@@ -932,6 +1009,13 @@ async function onSubmit(ev) {
 
     const saved = await response.json();
 
+    const visitId = saved.id ?? state.editId;
+
+    const { fotos, errors: photoErrors } = await uploadVisitPhotos(
+      visitId,
+      state.fotos
+    );
+
     const record = {
       ...saved,
 
@@ -943,8 +1027,7 @@ async function onSubmit(ev) {
             }
           : null,
 
-      // Temporary: photos remain client-side.
-      fotos: state.fotos.map(f => ({ ...f })),
+      fotos,
 
       creadoEn: new Date().toISOString(),
       enviadoEn: null,
@@ -976,12 +1059,19 @@ async function onSubmit(ev) {
 
     setTab('agenda');
 
+    if (photoErrors.length) {
     toast(
-      editing
-        ? 'Visita actualizada correctamente.'
-        : 'Visita guardada correctamente.',
-      'success'
+      `Visita guardada, pero ${photoErrors.length} foto(s) no se pudieron subir. Edita la visita para reintentarlo.`,
+      'warning'
     );
+    } else {
+      toast(
+        editing
+          ? 'Visita y fotos actualizadas correctamente.'
+          : 'Visita y fotos guardadas correctamente.',
+        'success'
+      );
+    }
 
   } catch (error) {
     console.error(error);
@@ -1081,7 +1171,7 @@ function renderSend() {
 function updateSendSize() {
   const ids = [...state.sendIds];
   const bytes = state.visitas.filter(v => ids.includes(v.id))
-    .reduce((s, v) => s + v.fotos.reduce((t, f) => t + f.dataUrl.length * 0.75, 0), 0);
+    .reduce((s, v) => s + v.fotos.reduce((t, f) => t + f.dataUrl || f.url.length * 0.75, 0), 0);
   const mb = bytes / 1048576;
   $('#send-size').textContent = `${ids.length} seleccionada${ids.length === 1 ? '' : 's'}, aprox. ${mb.toFixed(1)} MB`;
 }
@@ -1106,7 +1196,7 @@ function buildPayload(ids) {
       hora: v.hora,
       observacion: v.observacion,
       nombrePersona: v.persona,
-      fotos: v.fotos.map(f => ({ nombre: f.name, tipo: f.type, base64: f.dataUrl.split(',')[1] })),
+      fotos: v.fotos.map(f => ({ nombre: f.name, tipo: f.type, base64: f.dataUrl || f.url.split(',')[1] })),
     })),
   };
 }
@@ -1233,7 +1323,10 @@ document.addEventListener('click', e => {
     case 'rm-foto': state.fotos.splice(Number(el.dataset.i), 1); renderFotos(); break;
     case 'photo': {
       const f = byId(id)?.fotos[Number(el.dataset.i)];
-      if (f) { $('#photo-big').src = f.dataUrl; $('#dlg-photo').showModal(); }
+      if (f) {
+        $('#photo-big').src = f.dataUrl || f.url;
+        $('#dlg-photo').showModal();
+      }
       break;
     }
     case 'cancel-form':

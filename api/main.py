@@ -7,6 +7,7 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 from datetime import date, time
 from typing import Optional
 
+from fastapi.responses import Response
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import (
@@ -64,8 +65,18 @@ class VisitCreate(BaseModel):
 
 class VisitResponse(VisitCreate):
     id: int
+    fotos: list[PhotoResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+class PhotoResponse(BaseModel):
+    id: int
+    name: str
+    type: str
+    url: str
+
+
+
 
 # -------------------------
 # General
@@ -241,10 +252,57 @@ async def upload_photo(
 
     finally:
         await file.close()
+        
+
 
 # -------------------------
 # READ ALL
 # -------------------------
+
+@app.get("/photos/{photo_id}/content")
+def get_photo_content(
+    photo_id: int,
+    db: Session = Depends(get_db),
+):
+    photo = db.query(Photo).filter(
+        Photo.id == photo_id
+    ).first()
+
+    if photo is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Foto no encontrada",
+        )
+
+    if not STORAGE_CONNECTION_STRING:
+        raise HTTPException(
+            status_code=503,
+            detail="Almacenamiento de imágenes no configurado",
+        )
+
+    try:
+        blob_service = BlobServiceClient.from_connection_string(
+            STORAGE_CONNECTION_STRING
+        )
+
+        blob_client = blob_service.get_blob_client(
+            container=STORAGE_CONTAINER_NAME,
+            blob=photo.blob_name,
+        )
+
+        contents = blob_client.download_blob().readall()
+
+        return Response(
+            content=contents,
+            media_type=photo.content_type,
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo recuperar la imagen",
+        )
 
 @app.get("/visits", response_model=list[VisitResponse])
 def get_visits(
@@ -266,6 +324,15 @@ def get_visits(
             "observacion": v.observacion,
             "latitud": v.latitud,
             "longitud": v.longitud,
+            "fotos": [
+                {
+                    "id": photo.id,
+                    "name": photo.filename,
+                    "type": photo.content_type,
+                    "url": f"/photos/{photo.id}/content",
+                }
+                for photo in v.photos
+            ],
         }
         for v in visits
     ]
@@ -278,6 +345,7 @@ def get_visits(
 def get_visit(
     visit_id: int,
     db: Session = Depends(get_db),
+    
 ):
     visit = db.query(Visit).filter(
         Visit.id == visit_id
@@ -302,6 +370,15 @@ def get_visit(
         "observacion": visit.observacion,
         "latitud": visit.latitud,
         "longitud": visit.longitud,
+        "fotos": [
+            {
+                "id": photo.id,
+                "name": photo.filename,
+                "type": photo.content_type,
+                "url": f"/photos/{photo.id}/content",
+            }
+            for photo in visit.photos
+        ],
     }
 
 # -------------------------
