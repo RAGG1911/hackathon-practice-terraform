@@ -4,3 +4,4 @@ sqlalchemy
 psycopg[binary]
 python-multipart
 azure-storage-blob
+anyio==4.9.0
