@@ -63,17 +63,20 @@ class VisitCreate(BaseModel):
     longitud: Optional[float] = None
 
 
+class PhotoResponse(BaseModel):
+    id: int
+    name: str
+    type: str
+    url: str
+
+
 class VisitResponse(VisitCreate):
     id: int
     fotos: list[PhotoResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
-class PhotoResponse(BaseModel):
-    id: int
-    name: str
-    type: str
-    url: str
+
 
 
 
@@ -136,7 +139,7 @@ def create_visit(
         "latitud": new_visit.latitud,
         "longitud": new_visit.longitud,
     }
-    
+
 
 @app.post("/visits/{visit_id}/photos")
 async def upload_photo(
@@ -252,7 +255,7 @@ async def upload_photo(
 
     finally:
         await file.close()
-        
+
 
 
 # -------------------------
@@ -345,7 +348,7 @@ def get_visits(
 def get_visit(
     visit_id: int,
     db: Session = Depends(get_db),
-    
+
 ):
     visit = db.query(Visit).filter(
         Visit.id == visit_id

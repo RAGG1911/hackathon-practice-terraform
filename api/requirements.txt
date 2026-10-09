@@ -4,4 +4,3 @@ sqlalchemy
 psycopg[binary]
 python-multipart
 azure-storage-blob
-azure-storage-blob
